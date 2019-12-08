@@ -1,2 +1,3 @@
 .noseids
 .vscode
+nosetests.xml
