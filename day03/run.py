@@ -13,10 +13,31 @@ class Direction(object):
     DOWN = 2
     LEFT = 3
 
+class Cell(object):
+    def __init__(self):
+        self.tracks = {}
+
+    def colour_clashes(self, colour):
+        # check if this cell is already coloured in a different colour.
+        return self.tracks and colour not in self.tracks
+
+    def add_track(self, colour, distance):
+        if colour not in self.tracks:
+            self.tracks[colour] = distance
+
+    def __str__(self):
+        if not self.tracks:
+            return '.'
+        elif len(self.tracks) > 1:
+            return 'X'
+        else:
+            for key in self.tracks:
+                return str(key)
+
 class TurtleMarker(object):
     def __init__(self):
-        self.grid = defaultdict(lambda: defaultdict(lambda: 0))
-        self.clashes = dict()
+        self.grid = defaultdict(lambda: defaultdict(lambda: Cell()))
+        self.clashes = set()
         self.row, self.col = (0, 0)
         self.colour = 0
         self.distance = 0
@@ -31,9 +52,9 @@ class TurtleMarker(object):
         self.colour = colour
 
     def visit(self, row, col):
-        if self.grid[row][col] and self.grid[row][col] != self.colour:
-            self.clashes[(row,col)] = self.distance
-        self.grid[row][col] = self.colour
+        if self.grid[row][col].colour_clashes(self.colour):
+            self.clashes.add((row,col))
+        self.grid[row][col].add_track(self.colour, self.distance)
     
     def move_one(self, direction):
         self.distance += 1
@@ -69,13 +90,12 @@ class TurtleMarker(object):
             for col in range(min_col, max_col+1):
                 if (row, col) == (0,0):
                     print('O', end='')
-                elif (row, col) in self.clashes:
-                    print('X', end='')
-                elif self.grid[row][col]:
-                    print(self.grid[row][col], end='')
                 else:
-                    print('.', end='')
+                    print(self.grid[row][col], end='')
             print()
+
+    def get_clash_distances(self):
+        return (self.grid[row][col].tracks for (row, col) in self.clashes)
 
 
 DIRECTION_LOOKUP = {
@@ -97,7 +117,19 @@ def manhattan_distance(position):
 
 def part1():
     line1, line2 = get_input()
-    return trace(line1, line2)
+    return min_manhattan(line1, line2)
+
+def part2():
+    line1, line2 = get_input()
+    return min_trace_distance(line1, line2)
+
+def min_manhattan(line1, line2):
+    turtle = trace(line1, line2)
+    return min(map(manhattan_distance, turtle.clashes))
+
+def min_trace_distance(line1, line2):
+    turtle = trace(line1, line2)
+    return min(map(lambda tracks: sum(tracks.values()), turtle.get_clash_distances()))
 
 def trace(line1, line2):
     turtle = TurtleMarker()
@@ -109,16 +141,9 @@ def trace(line1, line2):
     turtle.reset_distance()
     for direction, distance in tokenize(line2):
         turtle.move(direction, distance)
-    #turtle.print_grid()
-    print(turtle.clashes)
-    return min(map(manhattan_distance, turtle.clashes))
+    return turtle
+
  
 if __name__ == '__main__':
-    l1 = "R8,U5,L5,D3"
-    l2 = "U7,R6,D4,L4"
-    result = trace(l1, l2)
-    # l1 = "R75,D30,R83,U83,L12,D49,R71,U7,L72"
-    # l2 = "U62,R66,U55,R34,D71,R55,D58,R83"
-    # result = trace(l1, l2)
-    # print(result)
-    # print(part1())
+    print(part1()) # 1264
+    print(part2()) # 37390
