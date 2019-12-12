@@ -1,5 +1,8 @@
 import os
 
+from dataclasses import dataclass
+from typing import Callable, Any
+
 def get_input():
     input_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'input5.txt')
     with open(input_file, 'r') as f:
@@ -16,70 +19,26 @@ class Instructions(object):
     END = 99
 
 
-class Instruction(object):
-    @staticmethod
-    def execute(*args):
-        pass
-
-class Add(Instruction):
-    opcode = Instructions.ADD
-    operands = 2
-    has_result = True
-
-    @staticmethod
-    def execute(*args):
-        return args[0] + args[1]
-
-class Mult(Instruction):
-    opcode = Instructions.MULT
-    operands = 2
-    has_result = True
-
-    @staticmethod
-    def execute(*args):
-        return args[0] * args[1]
-
-STDIN = iter([1])
-
-class Input(Instruction):
-    opcode = Instructions.INPUT
-    operands = 0
-    has_result = True
-
-    @staticmethod
-    def execute(*args):
-        return next(STDIN)
-
-class Output(Instruction):
-    opcode = Instructions.OUTPUT
-    operands = 1
-    has_result = False
-
-    @staticmethod
-    def execute(*args):
-        print(args[0])
-
-class End(Instruction):
-    opcode = Instructions.END
-    operands = 0
-    has_result = False
-
-    @staticmethod
-    def execute(*args):
-        pass
+@dataclass
+class Instruction:
+    opcode: int
+    operands: int
+    has_result: bool
+    execute: Callable[[Any], int]
 
 INSTRUCTION_MAP = {
-    Instructions.ADD: Add,
-    Instructions.MULT: Mult,
-    Instructions.INPUT: Input,
-    Instructions.OUTPUT: Output,
-    Instructions.END: End,
+    Instructions.ADD: Instruction(opcode=Instructions.ADD, operands=2, has_result=True, execute=lambda x,y: x+y),
+    Instructions.MULT: Instruction(opcode=Instructions.MULT, operands=2, has_result=True, execute=lambda x,y: x*y),
+    Instructions.INPUT: Instruction(opcode=Instructions.INPUT, operands=0, has_result=True, execute=lambda: None),
+    Instructions.OUTPUT: Instruction(opcode=Instructions.OUTPUT, operands=1, has_result=False, execute=lambda x: print(x)),
+    Instructions.END: Instruction(opcode=Instructions.END, operands=0, has_result=False, execute=lambda: None),
 }
 
 class Computer(object):
-    def __init__(self, ram):
+    def __init__(self, ram, stdin=None):
         self.pc = 0
         self.ram = ram
+        self.stdin = stdin
 
     def decode(self):
         # fetch
@@ -101,7 +60,10 @@ class Computer(object):
             operands.append(value)
 
         # execute
-        result = instruction.execute(*operands)
+        if instruction.opcode == Instructions.INPUT:
+            result = next(self.stdin)
+        else:
+            result = instruction.execute(*operands)
 
         # store result
         if instruction.has_result:
@@ -117,9 +79,10 @@ class Computer(object):
 
 def part1():
     ram = list(get_input())
-    computer = Computer(ram)
+    stdin = iter([1])
+    computer = Computer(ram, stdin)
     computer.run()
-    return ram[0]
+    return ram[0] # 12428642
 
 if __name__ == '__main__':
     part1()
