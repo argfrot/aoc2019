@@ -16,29 +16,59 @@ class Instructions(object):
     MULT = 2
     INPUT = 3
     OUTPUT = 4
+    JUMP_IF_TRUE = 5
+    JUMP_IF_FALSE = 6
+    LESS_THAN = 7
+    EQUALS = 8
     END = 99
 
 
 @dataclass
 class Instruction:
     opcode: int
-    operands: int
-    has_result: bool
-    execute: Callable[[Any], int]
+    operands: int = 0
+    has_result: bool = False
+    is_branch: bool = False
+    execute: Callable[[Any], int] = lambda: None
 
 INSTRUCTION_MAP = {
     Instructions.ADD: Instruction(opcode=Instructions.ADD, operands=2, has_result=True, execute=lambda x,y: x+y),
     Instructions.MULT: Instruction(opcode=Instructions.MULT, operands=2, has_result=True, execute=lambda x,y: x*y),
-    Instructions.INPUT: Instruction(opcode=Instructions.INPUT, operands=0, has_result=True, execute=lambda: None),
-    Instructions.OUTPUT: Instruction(opcode=Instructions.OUTPUT, operands=1, has_result=False, execute=lambda x: print(x)),
+    Instructions.INPUT: Instruction(opcode=Instructions.INPUT, operands=0, has_result=True),
+    Instructions.OUTPUT: Instruction(opcode=Instructions.OUTPUT, operands=1, execute=lambda x: x),
+    Instructions.JUMP_IF_TRUE: Instruction(
+        opcode = Instructions.JUMP_IF_TRUE,
+        operands = 2,
+        is_branch = True,
+        execute = lambda cond, dest: dest if cond else None
+    ),
+    Instructions.JUMP_IF_FALSE: Instruction(
+        opcode = Instructions.JUMP_IF_FALSE,
+        operands = 2,
+        is_branch = True,
+        execute = lambda cond, dest: dest if not cond else None
+    ),
+    Instructions.LESS_THAN: Instruction(
+        opcode = Instructions.LESS_THAN,
+        operands = 2,
+        has_result = True,
+        execute = lambda x,y: 1 if x < y else 0
+    ),
+    Instructions.EQUALS: Instruction(
+        opcode = Instructions.EQUALS,
+        operands = 2,
+        has_result = True,
+        execute = lambda x,y: 1 if x == y else 0
+    ),
     Instructions.END: Instruction(opcode=Instructions.END, operands=0, has_result=False, execute=lambda: None),
 }
 
 class Computer(object):
-    def __init__(self, ram, stdin=None):
+    def __init__(self, ram, stdin=None, stdout=None):
         self.pc = 0
         self.ram = ram
         self.stdin = stdin
+        self.stdout = stdout
 
     def decode(self):
         # fetch
@@ -62,8 +92,15 @@ class Computer(object):
         # execute
         if instruction.opcode == Instructions.INPUT:
             result = next(self.stdin)
+        elif instruction.is_branch:
+            result = instruction.execute(*operands)
+            if result is not None:
+                self.pc = result
         else:
             result = instruction.execute(*operands)
+
+        if instruction.opcode == Instructions.OUTPUT:
+            self.stdout.append(result)
 
         # store result
         if instruction.has_result:
@@ -77,12 +114,14 @@ class Computer(object):
         while self.decode().opcode != Instructions.END:
             pass
 
-def part1():
+def part1(input):
     ram = list(get_input())
-    stdin = iter([1])
-    computer = Computer(ram, stdin)
+    stdin = iter([input])
+    stdout = []
+    computer = Computer(ram, stdin, stdout)
     computer.run()
-    return ram[0] # 12428642
+    return stdout
 
 if __name__ == '__main__':
-    part1()
+    print(part1(1)) # 12428642
+    print(part1(5)) # 918655
