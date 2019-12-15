@@ -12,6 +12,16 @@ def get_input():
             for value in line.split(','):
                 yield int(value)
 
+def coroutine(f):
+    def start(*args,**kwargs):
+        try:
+            coro = f(*args,**kwargs)
+            coro.send(None)
+        except StopIteration:
+            pass
+        return coro
+    return start
+
 
 class Instructions(object):
     ADD = 1
@@ -68,13 +78,13 @@ Instruction(
 )
 Instruction(opcode=Instructions.END)
 
-
 class Computer(object):
     def __init__(self, ram, stdout=None):
         self.pc = 0
         self.ram = ram
         self.stdout = stdout
 
+    @coroutine
     def run(self):
         while True:
             # fetch
@@ -106,10 +116,7 @@ class Computer(object):
                 result = instruction.execute(*operands)
 
             if instruction.opcode == Instructions.OUTPUT:
-                try:
-                    self.stdout.send(result)
-                except StopIteration:
-                    pass
+                self.stdout.send(result)
 
             # store result
             if instruction.has_result:
@@ -120,12 +127,13 @@ class Computer(object):
             if instruction.opcode == Instructions.END:
                 break
 
-def receive():
-    l = []
+@coroutine
+def receive(output):
     while True:
-        result = yield l
-        l.append(result)
+        result = yield
+        output.append(result)
 
+@coroutine
 def pipe(destination):
     while True:
         result = yield
@@ -134,25 +142,10 @@ def pipe(destination):
         except StopIteration:
             pass
 
-def dest_pipe():
-    # first thing this pipe gets is it's destination
-    destination = yield
-    phase = yield
-    destination.send(None)
-    destination.send(phase)
-    destination.send(0)
-    while True:
-        result = yield
-        try:
-            destination.send(result)
-        except StopIteration:
-            pass
-
-
+@coroutine
 def amplifier(get_program, stdout):
     ram = list(get_program())
     computer = Computer(ram, stdout).run()
-    computer.send(None)
     try:
         while True:
             item = yield
@@ -162,44 +155,43 @@ def amplifier(get_program, stdout):
 
 def calculate_max_thrust(phase_settings, get_program=get_input):
     amps = {}
-    stdout = receive()
-    stdout.send(None)
+    stdout = [0] # 0 is the initial input to amps[0]
+    out = receive(stdout)
 
-    # dp = dest_pipe()
-    # dp.send(None)
-
-    amps[4] = amplifier(get_program, stdout)
-    p = pipe(amps[4])
-    p.send(None)
-    amps[3] = amplifier(get_program, p)
-    p = pipe(amps[3])
-    p.send(None)
-    amps[2] = amplifier(get_program, p)
-    p = pipe(amps[2])
-    p.send(None)
-    amps[1] = amplifier(get_program, p)
-    p = pipe(amps[1])
-    p.send(None)
-    amps[0] = amplifier(get_program, p)
-
+    amps[4] = amplifier(get_program, out)
+    amps[3] = amplifier(get_program, pipe(amps[4]))
+    amps[2] = amplifier(get_program, pipe(amps[3]))
+    amps[1] = amplifier(get_program, pipe(amps[2]))
+    amps[0] = amplifier(get_program, pipe(amps[1]))
 
     for i, phase in enumerate(phase_settings):
-        amps[i].send(None)
         amps[i].send(phase)
 
+    # Hooking the coroutines up directly from amps[4] back to amps[0]
+    # caused problems as the generators were already executing when it
+    # tried to send the output value back to the beginning of the pipeline.
+    #
+    # This solution explicitly takes the output value and sends it back to
+    # the start until the generators exit; each chain of sends unwinds
+    # back to here, so it can push the next value in.
+    #
+    # This was fun getting to know python generators/coroutines a litte
+    # more intimately...but next iteration: asyncio.
     try:
-        amps[0].send(0)
-        # dp.send(amps[0])
-        # dp.send(phase_settings[0])
+        while True:
+            amps[0].send(stdout.pop())
     except StopIteration:
         pass
 
-    result = stdout.send(None)
-    return result[0]
+    return stdout.pop()
 
 def part1():
-    # return calculate_max_thrust([1,2,3,4,5])
     return max(calculate_max_thrust(phase_settings) for phase_settings in permutations(range(5), 5))
+
+def part2():
+    return max(calculate_max_thrust(phase_settings) for phase_settings in permutations(range(5, 10), 5))
+
 
 if __name__ == '__main__':
     print(part1()) # 46248
+    print(part2()) # 54163586
