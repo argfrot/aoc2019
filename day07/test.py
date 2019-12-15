@@ -3,8 +3,11 @@ from day07.run import Computer, calculate_max_thrust
 def test_computer_add():
     ram = [1,0,0,0,99]
     expected_result = [2,0,0,0,99]
-    computer = Computer(ram)
-    computer.run()
+    try:
+        computer = Computer(ram).run()
+        computer.send(None)
+    except StopIteration:
+        pass
     assert expected_result == ram
 
 def test_computer_mult():
