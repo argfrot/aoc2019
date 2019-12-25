@@ -158,8 +158,11 @@ def infinite_ram(ram):
     return defaultdict(int, {i: v for i, v in enumerate(ram)})
 
 @coroutine
-def execute(get_program, stdout):
+def execute(get_program, stdout, init_ram=None):
     ram = infinite_ram(get_program())
+    if init_ram:
+        for address, value in init_ram.items():
+            ram[address] = value
     computer = Computer(ram, stdout).run()
     try:
         while True:
